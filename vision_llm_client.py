@@ -1,7 +1,7 @@
 import requests
 
 class VisionLLMClient:
-    def __init__(self, api_url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", api_key="AIzaSyCYHY-9oUiID0MYnDztPR5xJ3qptD-vIe8"):
+    def __init__(self, api_url, api_key=None):
         self.api_url = api_url
         self.api_key = api_key
 
