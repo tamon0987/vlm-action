@@ -86,6 +86,10 @@ Integrates with a vision LLM API (e.g., Gemini 2.0) to analyze images and genera
 **Purpose:**  
 Flask-based web dashboard for human-in-the-loop review, action approval, and mode switching.
 
+- The dashboard serves `static/index.html` at the root URL (`/`).
+- Users can interact with the system via their browser at `http://localhost:5000/`.
+- You can enhance `static/index.html` to display feedback, approve actions, and control modes.
+
 ---
 
 ## Auto Feedback System Architecture

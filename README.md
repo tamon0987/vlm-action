@@ -52,6 +52,8 @@ pip install -r requirements.txt
 python dashboard_app.py
 ```
 
+- Open your browser and go to [http://localhost:5000/](http://localhost:5000/) to access the dashboard UI, served from `static/index.html`.
+
 ### 3. Run the Orchestrator
 
 ```bash
@@ -68,7 +70,8 @@ python main.py
 
 ## Usage
 
-- Use the web dashboard to review and approve robot actions or switch to auto-approve mode for full autonomy.
+- Use the web dashboard at [http://localhost:5000/](http://localhost:5000/) to review and approve robot actions, view feedback, or switch to auto-approve mode for full autonomy.
+- The dashboard UI is served from `static/index.html` and can be customized to display system status and interact with API endpoints.
 - The orchestrator coordinates robot commands, camera capture, and LLM feedback.
 - Integrate your own LLM API and camera hardware as needed.
 
