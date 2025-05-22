@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Robot Arm Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; }
+    .container { max-width: 500px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 8px #ccc; }
+    h1 { text-align: center; }
+    img { max-width: 100%; margin: 16px 0; border-radius: 4px; }
+    .feedback { margin: 16px 0; }
+    .actions { display: flex; gap: 8px; }
+    .mode-toggle { margin: 16px 0; }
+    button { padding: 8px 16px; border: none; border-radius: 4px; background: #007bff; color: #fff; cursor: pointer; }
+    button:disabled { background: #aaa; }
+    input[type="text"] { width: 100%; padding: 8px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Robot Arm Dashboard</h1>
+    <div class="mode-toggle">
+      <label>
+        <input type="checkbox" id="modeSwitch" onchange="toggleMode()" />
+        Auto-Approve Mode
+      </label>
+    </div>
+    <div style="margin: 16px 0;">
+      <input type="text" id="nlInput" placeholder="Enter instruction for LLM (e.g., 'Pick up the red block')" style="width:80%;" />
+      <button onclick="sendNLInstruction()">Send</button>
+    </div>
+    <div id="feedbackSection">
+      <div class="feedback" id="feedbackText">Loading feedback...</div>
+      <img id="feedbackImage" src="" alt="Feedback Image" style="display:none;" />
+    </div>
+    <div class="actions">
+      <input type="text" id="actionInput" placeholder="Edit suggested action (JSON)" />
+      <button onclick="approveAction()">Approve</button>
+    </div>
+  </div>
+  <script>
+    async function fetchFeedback() {
+      const res = await fetch('/api/feedback/latest');
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('feedbackText').textContent = data.feedback || 'No feedback';
+      if (data.image_url) {
+        document.getElementById('feedbackImage').src = data.image_url;
+        document.getElementById('feedbackImage').style.display = '';
+      } else {
+        document.getElementById('feedbackImage').style.display = 'none';
+      }
+      document.getElementById('actionInput').value = JSON.stringify(data.suggested_action || {}, null, 2);
+    }
+
+    async function approveAction() {
+      const action = document.getElementById('actionInput').value;
+      try {
+        const parsed = JSON.parse(action);
+        await fetch('/api/feedback/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parsed)
+        });
+        alert('Action approved!');
+      } catch {
+        alert('Invalid JSON for action.');
+      }
+    }
+
+    async function fetchMode() {
+      const res = await fetch('/api/mode');
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('modeSwitch').checked = data.mode === 'auto-approve';
+    }
+
+    async function toggleMode() {
+      const mode = document.getElementById('modeSwitch').checked ? 'auto-approve' : 'human-approve';
+      await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+    }
+
+    fetchFeedback();
+    fetchMode();
+    setInterval(fetchFeedback, 5000);
+    async function sendNLInstruction() {
+      const text = document.getElementById('nlInput').value;
+      if (!text.trim()) {
+        alert('Please enter an instruction.');
+        return;
+      }
+      await fetch('/api/llm/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction: text })
+      });
+      fetchFeedback();
+    }
+  </script>
+</body>
+</html>

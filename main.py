@@ -4,8 +4,9 @@ import tagurobo
 # SDKの使用例
 def main():
     # SDKのインスタンスを作成（IPアドレスとポートを指定）
-    arm = tagurobo.RobotArmSDK(ip_address="192.168.11.10", port=4210, num_joints=6)
-    
+    # arm = tagurobo.RobotArmSDK(ip_address="192.168.11.10", port=4210, num_joints=6)
+    arm = tagurobo.RobotArmSDK(ip_address="0.0.0.0", port=4210, num_joints=6)
+
     # ロボットアームに接続
     if not arm.connect():
         print("接続に失敗しました。終了します。")

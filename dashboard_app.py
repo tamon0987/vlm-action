@@ -1,6 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
 
 # In-memory storage for demo purposes
 latest_feedback = {
@@ -10,6 +10,11 @@ latest_feedback = {
 }
 approved_action = None
 mode = "human-approve"  # or "auto-approve"
+
+@app.route("/")
+def index():
+    # Serve the static HTML dashboard if it exists
+    return send_from_directory(app.static_folder, "index.html")
 
 @app.route("/api/feedback/latest", methods=["GET"])
 def get_latest_feedback():
