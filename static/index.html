@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Robot Arm 3D Dashboard</title>
+  <style>
+    body { margin: 0; background: #222; color: #fff; }
+    #info { position: absolute; top: 10px; left: 10px; z-index: 10; }
+    #dashboard { display: flex; gap: 40px; margin: 20px; }
+    #camera, #llm, #sim3d { background: #333; padding: 16px; border-radius: 8px; }
+    #camera img { width: 320px; height: 240px; border: 2px solid #444; }
+    #llm input[type="text"] { width: 200px; }
+    #llm button { margin-left: 8px; }
+    canvas { display: block; }
+    #llm-command { margin-top: 10px; color: #0f0; }
+    #approve-btn { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h2>Robot Arm 3D Dashboard</h2>
+    <p>Camera, LLM, and 3D simulation in one UI.</p>
+  </div>
+  <div id="dashboard">
+    <div id="camera">
+      <h3>Camera Feed</h3>
+      <button id="camera-toggle">Camera ON</button>
+      <img id="camera-img" src="" alt="Camera feed">
+    </div>
+    <div id="llm">
+      <h3>LLM Order</h3>
+      <form id="llm-form">
+        <input type="text" id="llm-order" placeholder="Order to LLM">
+        <button type="submit">Send</button>
+      </form>
+      <button id="llm-order-image-btn" style="margin-top:10px;">Send Order with Camera Image</button>
+      <div id="llm-response" style="margin-top:10px;"></div>
+      <div id="llm-command"></div>
+      <button id="approve-btn" style="display:none;">Approve and Send to Robot</button>
+    </div>
+    <div id="sim3d" style="flex:1; min-width:400px;">
+      <h3>3D Simulation</h3>
+      <!-- Three.js canvas will be appended here -->
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+  <script>
+    // Camera ON/OFF logic
+    let cameraOn = false;
+    let cameraInterval = null;
+    const cameraBtn = document.getElementById('camera-toggle');
+    const cameraImg = document.getElementById('camera-img');
+
+    function refreshCamera() {
+      cameraImg.src = '/api/camera?' + new Date().getTime();
+    }
+
+    function setCamera(on) {
+      cameraOn = on;
+      cameraBtn.textContent = cameraOn ? "Camera OFF" : "Camera ON";
+      if (cameraOn) {
+        refreshCamera();
+        cameraInterval = setInterval(refreshCamera, 1000);
+      } else {
+        clearInterval(cameraInterval);
+        cameraImg.src = "";
+      }
+    }
+
+    cameraBtn.addEventListener('click', () => {
+      setCamera(!cameraOn);
+    });
+
+    // Start with camera off
+    setCamera(false);
+
+    // LLM order form (text only)
+    document.getElementById('llm-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const order = document.getElementById('llm-order').value;
+      const res = await fetch('/api/llm_order', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({order})
+      });
+      const data = await res.json();
+      document.getElementById('llm-response').innerText = data.response;
+    });
+
+    // LLM order with camera image
+    document.getElementById('llm-order-image-btn').addEventListener('click', async function() {
+      const order = document.getElementById('llm-order').value;
+      // Fetch current camera image as blob
+      const imgRes = await fetch('/api/camera');
+      const imgBlob = await imgRes.blob();
+      const formData = new FormData();
+      formData.append('order', order);
+      formData.append('image', imgBlob, 'camera.jpg');
+      const res = await fetch('/api/llm_order_with_image', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      document.getElementById('llm-response').innerText = data.llm_response;
+      // Show command for approval
+      window.llmCommand = data.command.angles;
+      document.getElementById('llm-command').innerText = 'Suggested command: ' + JSON.stringify(window.llmCommand);
+      document.getElementById('approve-btn').style.display = '';
+    });
+
+    // Approve and send command to robot (demo: update 3D sim only)
+    document.getElementById('approve-btn').addEventListener('click', async function() {
+      if (!window.llmCommand) return;
+      // For demo, POST to /api/feedback/approve to update joint values
+      await fetch('/api/feedback/approve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({approved_action: {angles: window.llmCommand}})
+      });
+      document.getElementById('approve-btn').style.display = 'none';
+      document.getElementById('llm-command').innerText = '';
+      document.getElementById('llm-response').innerText = 'Command sent to robot (simulated)';
+    });
+
+    // 3D Simulation (hierarchical transform fix)
+    const segmentLengths = [5, 4, 3, 2, 2, 1.5];
+    let jointAngles = [0, 0, 0, 0, 0, 0];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222222);
+    const camera = new THREE.PerspectiveCamera(60, 1.5, 0.1, 100);
+    camera.position.set(0, 10, 20);
+    camera.lookAt(0, 5, 0);
+
+    const renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setSize(500, 400);
+    document.getElementById('sim3d').appendChild(renderer.domElement);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 20, 10);
+    scene.add(light);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 30),
+      new THREE.MeshPhongMaterial({color: 0x444444, side: THREE.DoubleSide})
+    );
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    // Hierarchical arm structure
+    const armBases = [];
+    let parent = new THREE.Object3D();
+    parent.position.set(0, 0, 0);
+    scene.add(parent);
+
+    for (let i = 0; i < segmentLengths.length; i++) {
+      // Each base is the rotation point for the segment
+      const base = new THREE.Object3D();
+      parent.add(base);
+      armBases.push(base);
+
+      const geometry = new THREE.CylinderGeometry(0.3, 0.3, segmentLengths[i], 16);
+      const material = new THREE.MeshPhongMaterial({color: 0x00ff99});
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      // Move mesh so its base is at the origin of its parent
+      mesh.position.y = segmentLengths[i] / 2;
+      base.add(mesh);
+
+      // The next base is at the end of this segment
+      parent = new THREE.Object3D();
+      parent.position.y = segmentLengths[i];
+      base.add(parent);
+    }
+
+    let targetAngles = [0, 0, 0, 0, 0, 0];
+    function animateArm() {
+      for (let i = 0; i < armBases.length; i++) {
+        jointAngles[i] += (targetAngles[i] - jointAngles[i]) * 0.1;
+        armBases[i].rotation.z = THREE.MathUtils.degToRad(jointAngles[i]);
+      }
+    }
+
+    async function fetchJointValues() {
+      try {
+        const res = await fetch('/api/joint_values');
+        const data = await res.json();
+        targetAngles = data.to || [0,0,0,0,0,0];
+      } catch (e) {}
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      animateArm();
+      renderer.render(scene, camera);
+    }
+    animate();
+    setInterval(fetchJointValues, 1000);
+
+    // Responsive resize for 3D canvas
+    window.addEventListener('resize', () => {
+      renderer.setSize(500, 400);
+      camera.aspect = 500/400;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+</body>
+</html>
