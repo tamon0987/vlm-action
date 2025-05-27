@@ -1,11 +1,45 @@
 from flask import Flask, request, jsonify, send_from_directory
 from vision_llm_client import VisionLLMClient
 import io
+import socket
+import threading
 
 app = Flask(__name__, static_folder="static")
 
+# シンプルなCORS対応
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST')
+    return response
+
 # Configure your LLM API endpoint and key here
 llm_client = VisionLLMClient(api_url="https://your-llm-api-endpoint", api_key=None)
+
+# 現在の関節角度を保持
+current_angles = [0.0] * 6
+
+# UDPサーバーの設定
+UDP_IP = "127.0.0.1"  # localhostで待ち受け
+UDP_PORT = 4210
+
+def start_udp_server():
+    """UDPサーバーを起動してtagurobo SDKからの接続を待ち受ける"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((UDP_IP, UDP_PORT))
+    print(f"UDPサーバーを起動: {UDP_IP}:{UDP_PORT}")
+
+    while True:
+        try:
+            data, addr = sock.recvfrom(1024)
+            command = data.decode('utf-8').strip()
+            print(f"受信: {command} from {addr}")
+            
+            # すべてのコマンドに"OK"を返す
+            sock.sendto(b"OK", addr)
+        except Exception as e:
+            print(f"UDPサーバーエラー: {e}")
 
 # In-memory storage for demo purposes
 latest_feedback = {
@@ -69,23 +103,44 @@ def llm_order_with_image():
     }
     return jsonify(response)
 
+def load_trajectory():
+    """軌道データを読み込む"""
+    global trajectory_data, trajectory_start_time
+    try:
+        with open('trajectory.json', 'r') as f:
+            trajectory_data = json.load(f)
+            trajectory_start_time = time.time()
+    except Exception as e:
+        print(f"Error loading trajectory data: {e}")
+        trajectory_data = {
+            "trajectory": [[0]*6],
+            "timestamps": [0],
+            "actual_angles": [[0]*6]
+        }
+
+# 接続エンドポイント
+@app.route("/api/connect", methods=["POST"])
+def connect():
+    print("main.pyから接続されました")
+    return jsonify({"status": "connected"})
+
+# 角度更新エンドポイント
+@app.route("/api/update_angles", methods=["POST"])
+def update_angles():
+    global current_angles
+    data = request.json
+    angles = data.get("angles", [0.0] * 6)
+    current_angles = angles
+    print(f"新しい角度を受信: {angles}")
+    return jsonify({"status": "updated"})
+
 @app.route("/api/joint_values", methods=["GET"])
 def get_joint_values():
-    # DEMO: animate all 6 joints with different angles
-    num_joints = 6
-    from_values = [0] * num_joints
-    import math, time
-    t = time.time()
-    # Demo: oscillate each joint with different phase/speed
-    to_values = [
-        30 * math.sin(t),
-        45 * math.sin(t + 0.5),
-        60 * math.sin(t + 1.0),
-        20 * math.sin(t + 1.5),
-        15 * math.sin(t + 2.0),
-        10 * math.sin(t + 2.5)
-    ]
-    return jsonify({"from": from_values, "to": to_values})
+    """現在の関節角度を返す"""
+    return jsonify({
+        "from": current_angles,
+        "to": current_angles
+    })
 
 @app.route("/api/feedback/latest", methods=["GET"])
 def get_latest_feedback():
@@ -109,4 +164,11 @@ def mode_control():
     return jsonify({"mode": mode})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # UDPサーバーを別スレッドで起動
+    udp_thread = threading.Thread(target=start_udp_server)
+    udp_thread.daemon = True  # メインスレッド終了時に一緒に終了
+    udp_thread.start()
+    
+    # FlaskサーバーをHTTPで起動
+    print("Flaskサーバーを起動: http://localhost:5000")
+    app.run(debug=True, host='127.0.0.1', port=5000)

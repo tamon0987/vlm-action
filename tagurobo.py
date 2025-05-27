@@ -9,7 +9,7 @@ class RobotArmSDK:
     関節のモーター角度をUDP通信を使って制御するためのインターフェースを提供します
     """
     
-    def __init__(self, ip_address: str = "192.168.11.10", port: int = 4210, num_joints: int = 6,
+    def __init__(self, ip_address: str = "0.0.0.0", port: int = 4210, num_joints: int = 6,
                  timeout: float = 1.0):
         """
         SDKの初期化
