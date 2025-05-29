@@ -14,7 +14,7 @@ UDP_TIMEOUT = 0.5          # UDP受信のタイムアウト (秒)
 # モックサーバーのデフォルト関節数は6
 NUM_JOINTS = 6
 # 各リンクの長さ (実際のロボットアームに合わせて調整してください)
-LINK_LENGTHS = [0.5, 0.8, 0.7, 0.6, 0.4, 0.3] # 例: 6関節アーム
+LINK_LENGTHS = [35, 160, 120, 90, 65, 36] # 例: 6関節アーム
 if len(LINK_LENGTHS) != NUM_JOINTS:
     raise ValueError(f"LINK_LENGTHSの要素数({len(LINK_LENGTHS)})がNUM_JOINTS({NUM_JOINTS})と一致しません。")
 
@@ -68,29 +68,40 @@ def get_angles_from_server():
 
 def forward_kinematics(angles_rad, link_lengths):
     """
-    単純なロボットアームの順運動学を計算します (ラジアン単位の角度を使用)。
-    各関節は、前のリンクに対してXY平面内で回転すると仮定します。
+    ロボットアームの順運動学を計算します。
+    初期状態(全関節角度0度)でZ軸方向に伸び、各関節の角度はY軸周りの回転(ピッチ)として作用します。
     """
     num_links = len(link_lengths)
-    joint_positions = np.zeros((num_links + 1, 3))
-    current_angle_sum = 0.0
-    current_position = np.array([0.0, 0.0, 0.0])
+    joint_positions = np.zeros((num_links + 1, 3)) # ベース + 各関節先端の座標
+
+    current_position = np.array([0.0, 0.0, 0.0])  # ベースの位置 (原点)
     joint_positions[0, :] = current_position
 
+    # Y軸周りの累積回転角 (ピッチ角)
+    # 各 angles_rad[i] は、前のリンクの方向からの相対的なピッチ角と解釈し、
+    # それをワールド座標系でのY軸周りの回転として単純化して適用します。
+    # (より正確な多関節モデルでは、各リンクのローカル座標系を追跡する必要があります)
+    cumulative_pitch_angle = 0.0
+
     for i in range(num_links):
-        current_angle_sum += angles_rad[i] # angles_rad は各関節の角度 (前のリンクからの相対ではないグローバル角度として扱う場合)
-                                          # もし相対角度なら、ここは angles_rad[i] のみで、
-                                          # current_angle_sum は別途管理
+        # この関節でのピッチ角を累積 (アーム全体が同じXZ平面で曲がる簡易モデル)
+        cumulative_pitch_angle += angles_rad[i]
         
-        x = current_position[0] + link_lengths[i] * np.cos(current_angle_sum)
-        y = current_position[1] + link_lengths[i] * np.sin(current_angle_sum)
-        z = current_position[2]
-        # Z軸方向の動きも加えたい場合は、以下のように変更
-        # 例えば、i番目の関節がZ軸にも少し影響を与える場合：
-        # z_offset_factor = 0.1 # Z方向への影響度合い（調整用）
-        # z = current_position[2] + link_lengths[i] * np.sin(angles_rad[i]) * z_offset_factor
+        # XZ平面内での回転を計算
+        # 角度0 (cumulative_pitch_angle が 0) のとき、
+        # sin(0)=0, cos(0)=1 となり、Z軸方向にのみ伸びます (dx=0, dz=link_length)。
         
-        current_position = np.array([x, y, z])
+        # 現在のリンクの長さの各軸への射影を計算
+        # dx: X軸方向の変位
+        # dy: Y軸方向の変位 (Y軸周りの回転なので0)
+        # dz: Z軸方向の変位
+        dx = link_lengths[i] * np.sin(cumulative_pitch_angle)
+        dy = 0.0 # Y軸周りの回転なので、Y方向への直接的な伸びはない
+        dz = link_lengths[i] * np.cos(cumulative_pitch_angle)
+        
+        # 新しい関節位置を計算
+        # current_position は前の関節の先端位置（このループの開始時点での値）
+        current_position = current_position + np.array([dx, dy, dz])
         joint_positions[i+1, :] = current_position
         
     return joint_positions
@@ -103,7 +114,7 @@ ax = fig.add_subplot(111, projection='3d')
 max_reach = sum(LINK_LENGTHS)
 ax.set_xlim([-max_reach * 1.1, max_reach * 1.1])
 ax.set_ylim([-max_reach * 1.1, max_reach * 1.1])
-ax.set_zlim([-max_reach * 0.5, max_reach * 0.5]) # Z軸の範囲は適宜調整
+ax.set_zlim([-max_reach * 0, max_reach * 1.1]) # Z軸の範囲は適宜調整
 
 ax.set_xlabel('X軸')
 ax.set_ylabel('Y軸')
