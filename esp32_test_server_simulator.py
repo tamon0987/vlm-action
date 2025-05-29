@@ -69,7 +69,7 @@ def get_angles_from_server():
 def forward_kinematics(angles_rad, link_lengths):
     """
     ロボットアームの順運動学を計算します。
-    初期状態(全関節角度0度)でZ軸方向に伸び、各関節の角度はY軸周りの回転(ピッチ)として作用します。
+    初期状態(全関節角度0度)でZ-axis方向に伸び、各関節の角度はY-axis周りの回転(ピッチ)として作用します。
     """
     num_links = len(link_lengths)
     joint_positions = np.zeros((num_links + 1, 3)) # ベース + 各関節先端の座標
@@ -77,9 +77,9 @@ def forward_kinematics(angles_rad, link_lengths):
     current_position = np.array([0.0, 0.0, 0.0])  # ベースの位置 (原点)
     joint_positions[0, :] = current_position
 
-    # Y軸周りの累積回転角 (ピッチ角)
+    # Y-axis周りの累積回転角 (ピッチ角)
     # 各 angles_rad[i] は、前のリンクの方向からの相対的なピッチ角と解釈し、
-    # それをワールド座標系でのY軸周りの回転として単純化して適用します。
+    # それをワールド座標系でのY-axis周りの回転として単純化して適用します。
     # (より正確な多関節モデルでは、各リンクのローカル座標系を追跡する必要があります)
     cumulative_pitch_angle = 0.0
 
@@ -89,14 +89,14 @@ def forward_kinematics(angles_rad, link_lengths):
         
         # XZ平面内での回転を計算
         # 角度0 (cumulative_pitch_angle が 0) のとき、
-        # sin(0)=0, cos(0)=1 となり、Z軸方向にのみ伸びます (dx=0, dz=link_length)。
+        # sin(0)=0, cos(0)=1 となり、Z-axis方向にのみ伸びます (dx=0, dz=link_length)。
         
-        # 現在のリンクの長さの各軸への射影を計算
-        # dx: X軸方向の変位
-        # dy: Y軸方向の変位 (Y軸周りの回転なので0)
-        # dz: Z軸方向の変位
+        # 現在のリンクの長さの各-axisへの射影を計算
+        # dx: X-axis方向の変位
+        # dy: Y-axis方向の変位 (Y-axis周りの回転なので0)
+        # dz: Z-axis方向の変位
         dx = link_lengths[i] * np.sin(cumulative_pitch_angle)
-        dy = 0.0 # Y軸周りの回転なので、Y方向への直接的な伸びはない
+        dy = 0.0 # Y-axis周りの回転なので、Y方向への直接的な伸びはない
         dz = link_lengths[i] * np.cos(cumulative_pitch_angle)
         
         # 新しい関節位置を計算
@@ -114,12 +114,12 @@ ax = fig.add_subplot(111, projection='3d')
 max_reach = sum(LINK_LENGTHS)
 ax.set_xlim([-max_reach * 1.1, max_reach * 1.1])
 ax.set_ylim([-max_reach * 1.1, max_reach * 1.1])
-ax.set_zlim([-max_reach * 0, max_reach * 1.1]) # Z軸の範囲は適宜調整
+ax.set_zlim([-max_reach * 0, max_reach * 1.1]) # Z-axisの範囲は適宜調整
 
-ax.set_xlabel('X軸')
-ax.set_ylabel('Y軸')
-ax.set_zlabel('Z軸')
-ax.set_title('ロボットアーム 3D可視化 (サーバー連携)')
+ax.set_xlabel('X-axis')
+ax.set_ylabel('Y-axis')
+ax.set_zlabel('Z-axis')
+ax.set_title('robot arm 3D visualization (server simulation)')
 ax.view_init(elev=25., azim=45)
 
 line, = ax.plot([], [], [], 'o-', lw=3, markersize=7, color='deepskyblue', markeredgecolor='navy')
