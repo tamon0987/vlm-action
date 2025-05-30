@@ -69,7 +69,7 @@ def get_angles_from_server():
 def forward_kinematics(angles_rad, link_lengths):
     """
     ロボットアームの順運動学を計算します。
-    初期状態(全関節角度0度)でZ-axis方向に伸び、各関節の角度はY-axis周りの回転(ピッチ)として作用します。
+    初期状態(全関節角度0度)でX-axis方向に伸び、各関節の角度はY-axis周りの回転(ピッチ)として作用します。
     """
     num_links = len(link_lengths)
     joint_positions = np.zeros((num_links + 1, 3)) # ベース + 各関節先端の座標
@@ -89,15 +89,15 @@ def forward_kinematics(angles_rad, link_lengths):
         
         # XZ平面内での回転を計算
         # 角度0 (cumulative_pitch_angle が 0) のとき、
-        # sin(0)=0, cos(0)=1 となり、Z-axis方向にのみ伸びます (dx=0, dz=link_length)。
+        # sin(0)=0, cos(0)=1 となり、X-axis方向にのみ伸びます (dx=link_length, dz=0)。
         
         # 現在のリンクの長さの各-axisへの射影を計算
         # dx: X-axis方向の変位
         # dy: Y-axis方向の変位 (Y-axis周りの回転なので0)
         # dz: Z-axis方向の変位
-        dx = link_lengths[i] * np.sin(cumulative_pitch_angle)
+        dx = link_lengths[i] * np.cos(cumulative_pitch_angle)
         dy = 0.0 # Y-axis周りの回転なので、Y方向への直接的な伸びはない
-        dz = link_lengths[i] * np.cos(cumulative_pitch_angle)
+        dz = link_lengths[i] * np.sin(cumulative_pitch_angle)
         
         # 新しい関節位置を計算
         # current_position は前の関節の先端位置（このループの開始時点での値）
